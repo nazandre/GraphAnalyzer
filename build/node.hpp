@@ -1,6 +1,7 @@
 #ifndef NODE_H_
 #define NODE_H_
 
+#include <ostream>
 #include <list>
 
 class Node;
@@ -19,7 +20,9 @@ public:
   ~Node();
 
   void addNeighbor(Node* n);
-  
+
 };
+
+std::ostream& operator<<(std::ostream &os, const nodeList_t &nodeList);
 
 #endif

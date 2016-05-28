@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -Wall -std=c++11 -fopenmp
+CFLAGS = -g -Wall -std=c++11 -fopenmp
 EXEC_NAME = graphAnalyzer
 INCLUDES =
 LIBS = -fopenmp

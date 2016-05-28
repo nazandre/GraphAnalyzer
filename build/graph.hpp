@@ -1,12 +1,14 @@
 #ifndef GRAPH_H_
 #define GRAPH_H_
 
+#include <utility>
 #include "node.hpp"
 
 typedef Node* graph_t; 
 typedef int distance_t;
 typedef distance_t* distanceMap_t;
 typedef Node** parentMap_t;
+typedef std::pair<distance_t,distance_t> nodeProperty_t; // eccentricity, farness
 
 #define BFS_BASED_APSP
 #define PARALLEL_APSP
@@ -25,6 +27,7 @@ public:
   
   distance_t diameter;
   distance_t radius;
+  distance_t minFarness;
   
   distanceMap_t eccentricity;
   distanceMap_t farness;
@@ -43,10 +46,16 @@ public:
 			  distanceMap_t distances,
 			  parentMap_t parents);
 
+  void printDistance(distanceMap_t d);
   distance_t maxDistance(distanceMap_t d);
   distance_t minDistance(distanceMap_t d);
+  distance_t sumDistance(distanceMap_t d); 
 
-
+  // Check whether or not the configuration is connected (i.e., any node can reach any other)
+  // Perform a BFS from node 0.
+  // Complexity: O(n+m) time, O(n) memory
+  bool isConnected();
+  
   // Compute diameter, radius, center and centroid
   // Complexity: O(n) BFSes (O(n(n+m) time, O(n*#threads) memory)
   //    BFSes run in parallel
@@ -54,7 +63,7 @@ public:
 
   // Compute the eccentricity and farness of a single node of index "index"
   // Complexity: O(1) BFS (O(n+m) time, O(n) memory)
-  void compute(int index); // compute values for a single node!
+  nodeProperty_t compute(int index); // compute values for a single node!
 
   // Compute only diameter and radius.
   // Complexity: O(n) BFSes (O(n(n+m) time, O(n) memory)

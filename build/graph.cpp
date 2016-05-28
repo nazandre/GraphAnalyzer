@@ -4,6 +4,7 @@
 #include <sstream>
 #include <cstring>
 #include <climits>
+#include <omp.h>
 
 #include "graph.hpp"
 
@@ -11,18 +12,21 @@ using namespace std;
 
 //#define INPUT_GRAPH_READING_DEBUG
 //#define APSP_DEBUG
-#define DEBUG_FAST_COMPUTE
+//#define DEBUG_FAST_COMPUTE
 
-#define MAX_DISTANCE 9999
-#define MIN_DISTANCE -9999
+//#define MAX_DISTANCE INT_MAX
+//#define MIN_DISTANCE INT_MIN
+
+#define MAX_DISTANCE INT_MAX
+#define MIN_DISTANCE INT_MIN
 
 Graph::Graph() {
   graph = NULL;
   numNodes = 0;
   numEdges = 0;
   computed = false;
-  diameter = INT_MIN;
-  radius = INT_MAX;
+  diameter = MIN_DISTANCE;
+  radius = MAX_DISTANCE;
   eccentricity = NULL;
   farness = NULL;
 }
@@ -33,8 +37,8 @@ Graph::Graph(std::string i) {
   numNodes = 0;
   numEdges = 0;
   computed = false;
-  diameter = INT_MIN;
-  radius = INT_MAX;
+  diameter = MIN_DISTANCE;
+  radius = MAX_DISTANCE;
   eccentricity = NULL;
   farness = NULL;
   read();
@@ -57,7 +61,6 @@ void Graph::read() {
   ifstream file(input);
   
   file >> numNodes;
-  cerr << "Graph: " << numNodes << " graph" << endl;
   graph = new Node[numNodes];
 
   getline(file,line); // skip current line
@@ -94,6 +97,7 @@ void Graph::read() {
     }
   }
   file.close();
+  cerr << "Graph: " << numNodes << " nodes, " << numEdges << " edges" << endl;
 }
 
 void Graph::addEdge(int i, int j) {
@@ -147,6 +151,23 @@ void Graph::breadthFirstSearch(Node *root,
   }
 }
 
+bool Graph::isConnected() {
+  distanceMap_t distances = new distance_t[numNodes];
+  breadthFirstSearch(&graph[0],distances,NULL);
+  for (int i = 0; i < numNodes; i++) {
+    if (distances[i] < 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void Graph::printDistance(distanceMap_t d) {
+  for (int i = 0; i < numNodes; i++) {
+    cout << d[i] << ", ";
+  }
+}
+
 distance_t Graph::maxDistance(distanceMap_t d) {
   distance_t m = d[0];
   for (int i = 1; i < numNodes; i++) {
@@ -163,26 +184,64 @@ distance_t Graph::minDistance(distanceMap_t d) {
   return m;
 }
 
+distance_t Graph::sumDistance(distanceMap_t d) {
+  distance_t s = 0;
+  for (int i = 0; i < numNodes; i++) {
+    s += d[i];
+  }
+  return s;
+}
+
 void Graph::compute() {
+  eccentricity = new distance_t[numNodes];
+  farness = new distance_t[numNodes];
+  
   cerr << "Compute: " << endl;
   cerr << "Breadth-First Search (BFS) based algorithm..." << endl;
 #ifdef PARALLEL_APSP
-  cerr << "Parallel optimization using OpenMP..." << endl;
+  cerr << "Parallel optimization using OpenMP. "
+       << "Max number of threads: " << omp_get_max_threads() << endl;
 #pragma omp parallel for
 #endif
   for(int i = 0; i < numNodes; i++) {
-    distance_t eccentricity = 0;
     distanceMap_t distances = new distance_t[numNodes];
     breadthFirstSearch(&graph[i],distances,NULL);
-    eccentricity = maxDistance(distances);
-    diameter = max(diameter, eccentricity);
-    radius = min(radius, eccentricity);
+    eccentricity[i] = maxDistance(distances);
+    farness[i] = sumDistance(distances);
     delete[] distances;
+  }
+
+  diameter = eccentricity[0];
+  radius = eccentricity[0];
+  minFarness = farness[0];
+  for (int i = 0; i < numNodes; i++) {
+    diameter = max(diameter, eccentricity[i]);
+    radius = min(radius, eccentricity[i]);
+    minFarness = min(minFarness, farness[i]);
+  }
+
+  center.clear();
+  centroid.clear();
+  
+  for (int i = 0; i < numNodes; i++) {
+    if (eccentricity[i] == radius) {
+      center.push_back(&graph[i]);
+    }
+    if(farness[i] == minFarness) {
+      centroid.push_back(&graph[i]);
+    }
   }
 }
 
-void Graph::compute(int index) {
-  
+nodeProperty_t Graph::compute(int index) {
+  distance_t eccentricity = 0;
+  distance_t farness = 0;
+  distanceMap_t distances = new distance_t[numNodes];
+  breadthFirstSearch(&graph[index],distances,NULL);
+  eccentricity = maxDistance(distances);
+  farness = sumDistance(distances);
+  delete[] distances;
+  return make_pair(eccentricity,farness);
 }
 
 void Graph::fastCompute() { // compute only diameter+radius
@@ -193,27 +252,30 @@ void Graph::fastCompute() { // compute only diameter+radius
   distanceMap_t eccentricityL = new distance_t[numNodes];
   distanceMap_t distances = new distance_t[numNodes];
   distanceMap_t sum =  new distance_t[numNodes]; // to break the ties in next node selection
-  bool *alreadyDone = new bool[numNodes]; 
   bool selectInLower = true;
-  bool notConnectedDetected = false;
   int round = 1;
   
-  cerr << "Compute diameter and radius computation...: " << endl;
+  cerr << "Fast diameter and radius computation..." << endl;
 
   current = &graph[0]; // start with node 0
-  memset(eccentricityU, MAX_DISTANCE, numNodes*sizeof(distance_t));
+  memset(eccentricityU, 999, numNodes*sizeof(distance_t));
   memset(eccentricityL, 0, numNodes*sizeof(distance_t));
-  memset(alreadyDone, false, numNodes*sizeof(bool));
-   
+  memset(sum, 0, numNodes*sizeof(distance_t));
+
   while(true) {
+    
 #ifdef DEBUG_FAST_COMPUTE
     cerr << "Computing BFS from node " << current->graphId << endl; 
 #endif
     breadthFirstSearch(current,distances,NULL);
-    alreadyDone[current->graphId] = true;
+
+#ifdef DEBUG_FAST_COMPUTE
+    cerr << "distances: ";
+    printDistance(distances);
+    cerr << endl;
+#endif
     
     eccentricity = maxDistance(distances);
-
     eccentricityU[current->graphId] = eccentricity;
     eccentricityL[current->graphId] = eccentricity;
     
@@ -221,10 +283,6 @@ void Graph::fastCompute() { // compute only diameter+radius
       if (i != current->graphId) {
 	eccentricityU[i] = min(eccentricityU[i],distances[i] + eccentricity);
 	eccentricityL[i] = max(eccentricityL[i],distances[i]);
-	if (!notConnectedDetected && distances[i] <= 0) {
-	  notConnectedDetected = true;
-	  cerr << "WARNING: Not a connected configuration!" << endl;
-	}
 	sum[i] += distances[i];
       }
     }
@@ -284,9 +342,12 @@ void Graph::fastCompute() { // compute only diameter+radius
 	}
       }
     }
-    
-    if (eccentricityL[minEccYid] <= eccentricityL[minEccLXid] && // radius comp. has converged
+   
+    if ( (minEccLXid == -1 && maxEccUXid == -1) || // everything has converged
+	 (
+	  eccentricityL[minEccYid] <= eccentricityL[minEccLXid] && // radius comp. has converged
 	eccentricityL[maxEccYid] >= eccentricityL[maxEccUXid] // diameter comp. has converged
+	  )
 	) {
       radius = eccentricityL[minEccYid];
       diameter = eccentricityL[maxEccYid];
@@ -304,10 +365,11 @@ void Graph::fastCompute() { // compute only diameter+radius
     round++;
   }
 
-  cout << "Diameter and radius computed in " << round << " BFSes" << endl;
+  cerr << "Convergence in " << round << " BFSes" << endl;
   delete[] eccentricityU;
   delete[] eccentricityL;
   delete[] distances;
+  delete[] sum;
 }
 
 distance_t Graph::getEccentricity(int index) {
