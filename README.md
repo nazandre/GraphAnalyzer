@@ -1,7 +1,7 @@
 # GraphAnalyzer
 
 GraphAnalyzer is a tool to efficiently analyze undirected and unweighted graphs.
-It is efficient both in terms of time and memory usage. Moreover, it is optimized for sparse graphs.
+It is efficient both in terms of computation time and memory usage. GraphAnalyzer is optimized for sparse graphs.
 
 For now, it only print the diameter and the radius of the graph in input.
 
