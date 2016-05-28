@@ -13,3 +13,7 @@ Node::Node(const Node &n) {
 }
 
 Node::~Node() {}
+
+void Node::addNeighbor(Node *n) {
+  neighbors.push_back(n);
+}

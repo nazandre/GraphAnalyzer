@@ -2,64 +2,73 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <cstring>
+#include <climits>
+
 #include "graph.hpp"
 
 using namespace std;
 
 //#define INPUT_GRAPH_READING_DEBUG
 //#define APSP_DEBUG
+#define DEBUG_FAST_COMPUTE
 
-#define NOT_COMPUTED_YET -1
+#define MAX_DISTANCE 9999
+#define MIN_DISTANCE -9999
 
 Graph::Graph() {
-  nodes = NULL;
-  distances = NULL;
-  distanceMap = NULL;
-  diameter = NOT_COMPUTED_YET;
+  graph = NULL;
+  numNodes = 0;
+  numEdges = 0;
+  computed = false;
+  diameter = INT_MIN;
+  radius = INT_MAX;
+  eccentricity = NULL;
+  farness = NULL;
 }
 
-Graph::Graph(std::string i) : nameMap(get(vertex_index, graph)) {
+Graph::Graph(std::string i) {
   input = i;
-  nodes = NULL;
-  distances = NULL;
-  distanceMap = NULL;
-  diameter = NOT_COMPUTED_YET;
+  graph = NULL;
+  numNodes = 0;
+  numEdges = 0;
+  computed = false;
+  diameter = INT_MIN;
+  radius = INT_MAX;
+  eccentricity = NULL;
+  farness = NULL;
   read();
 }
 
 Graph::Graph(const Graph &g) {
-  input = g.input;
-  nameMap = g.nameMap;
-  nodes = NULL;
-  distances = NULL;
-  distanceMap = NULL;
-  diameter = NOT_COMPUTED_YET;
-  read();
+  // NOT IMPLEMENTED YET
+  cerr << "ERROR: Graph copy constructor not implemented yet." << endl;
+  exit(EXIT_FAILURE);
 }
 
 Graph::~Graph() {
-  delete[] nodes;
-  delete distances;
-  delete distanceMap;
+  delete[] graph;
+  delete[] eccentricity;
+  delete[] farness;
 }
 
 void Graph::read() {
   string line;
   ifstream file(input);
   
-  file >> size;
-  cerr << "Graph: " << size << " nodes" << endl;
-  nodes = new Node[size];
+  file >> numNodes;
+  cerr << "Graph: " << numNodes << " graph" << endl;
+  graph = new Node[numNodes];
 
   getline(file,line); // skip current line
   
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < numNodes; i++) {
     if(getline(file,line)) {
       int numNeighbors, nodeId, graphId;
       istringstream iss(line);
       iss >> nodeId;
-      nodes[i].graphId = i;
-      nodes[i].nodeId = nodeId;
+      graph[i].graphId = i;
+      graph[i].nodeId = nodeId;
       iss >> numNeighbors;
 #ifdef INPUT_GRAPH_READING_DEBUG
       cout << "Line: " << i+1 << ": \"" <<  line << "\"" << endl;
@@ -72,7 +81,7 @@ void Graph::read() {
 #ifdef INPUT_GRAPH_READING_DEBUG
 	  cout << " " << graphId;
 #endif
-	  add_edge(i,graphId-1,1,graph);
+	  addEdge(i,graphId-1);
 	} else {
 	  cerr << "ERROR: " << input << " file corrupted." << endl;
 	}
@@ -87,90 +96,237 @@ void Graph::read() {
   file.close();
 }
 
-/*********** All Pair Shortest Path Computation ***********/
+void Graph::addEdge(int i, int j) {
+  Node *ni = &graph[i];
+  Node *nj = &graph[j];
 
-void Graph::computeAllPairShortestPaths() {
-  distances = new DistanceMatrix(size);
-  //distanceMap = new DistanceMatrixMap(*distances, graph);
-  
-  DistanceMatrix &d = *distances;
-  distanceMap = new DistanceMatrixMap(d, graph);
-  DistanceMatrixMap dm = *distanceMap;
-  
-  cerr << "Computing all pairs shortest paths..." << endl;
-  
-#ifdef FLOYD_WARSHALL_APSP
-  // All pairs shortest paths using FW
-  cerr << "Floyd Warshall algorithm..." << endl;
-  floyd_warshall_all_pairs_shortest_paths(graph,dm);
-#endif
-#ifdef JOHNSON_APSP
-  cerr << "Johnson algorithm..." << endl;
-  johnson_all_pairs_shortest_paths(graph,dm);
-#endif
+  ni->addNeighbor(nj);
+  nj->addNeighbor(ni);
+  numEdges++;
+}
 
-#ifdef DIJKSTRA_BASED_APSP
-  cerr << "Dijkstra-based algorithm..." << endl;
-#ifdef PARALLEL_APSP
-  cerr << "Parallel optimization using OpenMP..." << endl;
-#pragma omp parallel for
-  for(int i = 0; i < size; i++) {
-    //Vertex v = vertex(i,graph);
-    dijkstra_shortest_paths(graph, i, distance_map(dm[i]));
-  }
-#else
-  graph_traits<Graph_t>::vertex_iterator i, end;
-  for(boost::tie(i, end) = vertices(graph); i != end; ++i) {
-    dijkstra_shortest_paths(graph, *i, distance_map(dm[*i]));
-  }
-#endif
-#endif
+void Graph::breadthFirstSearch(Node *root,
+			       distanceMap_t distances,
+			       parentMap_t parents) {
+  int i, distance;
+  Node *parent = NULL, *neighbor = NULL;
+  bool finished = false;
+  nodeList_t::iterator it;
   
-#ifdef BFS_BASED_APSP
+  if (distances == NULL) {
+    cerr << "ERROR: distances parameters of Graph::breadthFirstSearch should not be NULL" << endl;
+  }
+
+  memset(distances, -1, numNodes*sizeof(distance_t));
+  
+  distance = 0;
+  distances[root->graphId] = distance;
+ 
+  while (!finished) {
+    finished = true;
+    for (i = 0; i < numNodes; i++) {
+      if (distances[i] == distance) {
+	finished = false;
+	parent = &graph[i];
+	it = parent->neighbors.begin();
+	while (it != parent->neighbors.end()) {
+	  neighbor = *it;
+	  if (distances[neighbor->graphId] != -1) {
+	    it++;
+	    continue;
+	  }
+	  distances[neighbor->graphId] = distance + 1;
+	  if (parents != NULL) {
+	    parents[neighbor->graphId] = parent;
+	  }
+	  it++;
+	}
+      }
+    }
+    distance++;
+  }
+}
+
+distance_t Graph::maxDistance(distanceMap_t d) {
+  distance_t m = d[0];
+  for (int i = 1; i < numNodes; i++) {
+    m = max(m,d[i]);
+  }
+  return m;
+}
+
+distance_t Graph::minDistance(distanceMap_t d) {
+  distance_t m = d[0];
+  for (int i = 1; i < numNodes; i++) {
+    m = min(m,d[i]);
+  }
+  return m;
+}
+
+void Graph::compute() {
+  cerr << "Compute: " << endl;
   cerr << "Breadth-First Search (BFS) based algorithm..." << endl;
 #ifdef PARALLEL_APSP
   cerr << "Parallel optimization using OpenMP..." << endl;
 #pragma omp parallel for
-  for(int i = 0; i < size; i++) {
-    //Vertex v = vertex(i,graph);
-    breadth_first_search(graph, i,
-			 visitor(make_bfs_visitor(record_distances(dm[i],on_tree_edge()))));
+#endif
+  for(int i = 0; i < numNodes; i++) {
+    distance_t eccentricity = 0;
+    distanceMap_t distances = new distance_t[numNodes];
+    breadthFirstSearch(&graph[i],distances,NULL);
+    eccentricity = maxDistance(distances);
+    diameter = max(diameter, eccentricity);
+    radius = min(radius, eccentricity);
+    delete[] distances;
   }
-#else
-  graph_traits<Graph_t>::vertex_iterator i, end;
-  for(boost::tie(i, end) = vertices(graph); i != end; ++i) {
-    breadth_first_search(graph, *i,
-			 visitor(make_bfs_visitor(record_distances(dm[*i],on_tree_edge()))));
-  }
-#endif
-#endif
-  
-#ifdef APSP_DEBUG
-  printDistances();
-#endif
 }
 
-void Graph::computeDiameter() {
-  diameter = NOT_COMPUTED_YET;
-  if (distances != NULL) {
-    // later version will use eccentricity definition,
-    // just for now
-    DistanceMatrix &D = *distances;
-    for (int j = 0; j < size; ++j) {
-      for (int i = 0; i < size; ++i) {
-	diameter = max(diameter,D[i][j]);
+void Graph::compute(int index) {
+  
+}
+
+void Graph::fastCompute() { // compute only diameter+radius
+  Node *current;
+  int next;
+  distance_t eccentricity = 0;
+  distanceMap_t eccentricityU = new distance_t[numNodes];
+  distanceMap_t eccentricityL = new distance_t[numNodes];
+  distanceMap_t distances = new distance_t[numNodes];
+  distanceMap_t sum =  new distance_t[numNodes]; // to break the ties in next node selection
+  bool *alreadyDone = new bool[numNodes]; 
+  bool selectInLower = true;
+  bool notConnectedDetected = false;
+  int round = 1;
+  
+  cerr << "Compute diameter and radius computation...: " << endl;
+
+  current = &graph[0]; // start with node 0
+  memset(eccentricityU, MAX_DISTANCE, numNodes*sizeof(distance_t));
+  memset(eccentricityL, 0, numNodes*sizeof(distance_t));
+  memset(alreadyDone, false, numNodes*sizeof(bool));
+   
+  while(true) {
+#ifdef DEBUG_FAST_COMPUTE
+    cerr << "Computing BFS from node " << current->graphId << endl; 
+#endif
+    breadthFirstSearch(current,distances,NULL);
+    alreadyDone[current->graphId] = true;
+    
+    eccentricity = maxDistance(distances);
+
+    eccentricityU[current->graphId] = eccentricity;
+    eccentricityL[current->graphId] = eccentricity;
+    
+    for (int i = 0; i < numNodes; i++) {
+      if (i != current->graphId) {
+	eccentricityU[i] = min(eccentricityU[i],distances[i] + eccentricity);
+	eccentricityL[i] = max(eccentricityL[i],distances[i]);
+	if (!notConnectedDetected && distances[i] <= 0) {
+	  notConnectedDetected = true;
+	  cerr << "WARNING: Not a connected configuration!" << endl;
+	}
+	sum[i] += distances[i];
       }
     }
+
+    if (round < 4) {
+      next = 0;
+      for (int i = 1; i < numNodes; i++) {
+	if (distances[i] > distances[next]) {
+	  next = i;
+	}
+      }
+      current = &graph[next];
+      round++;
+      continue;
+    }
+	
+    // X : set of nodes v such that eL[v] < eU[v]
+    // Y : set of nodes v such that eL[v] == eU[v]
+    
+    int minEccYid = -1;
+    int minEccLXid = -1;
+    int maxEccUXid = -1;
+    int maxEccYid = -1;
+
+    for (int i = 0; i < numNodes; i++) {
+      if (eccentricityL[i] < eccentricityU[i]) { // X
+	
+	if (minEccLXid == -1 && maxEccUXid == -1) {
+	  minEccLXid = i;
+	  maxEccUXid = i;
+	  continue;
+	}
+	
+	if (eccentricityL[i] < eccentricityL[minEccLXid] ||
+	    (eccentricityL[i] == eccentricityL[minEccLXid] && sum[i] < sum[minEccLXid])
+	    ) {
+	  minEccLXid = i;
+	}
+	
+	if (eccentricityU[i] > eccentricityL[maxEccUXid] ||
+	    (eccentricityU[i] == eccentricityU[maxEccUXid] && sum[i] > sum[minEccLXid])
+	    ) {
+	  maxEccUXid = i;
+	}
+	
+      } else { // Y
+	if (minEccYid == -1 && maxEccYid == -1) {
+	  minEccYid = i;
+	  maxEccYid = i;
+	  continue;
+	}
+	if (eccentricityL[i] < eccentricityL[minEccYid]) {
+	  minEccYid = i;
+	}
+	if (eccentricityU[i] > eccentricityL[maxEccYid]) {
+	  maxEccYid = i;
+	}
+      }
+    }
+    
+    if (eccentricityL[minEccYid] <= eccentricityL[minEccLXid] && // radius comp. has converged
+	eccentricityL[maxEccYid] >= eccentricityL[maxEccUXid] // diameter comp. has converged
+	) {
+      radius = eccentricityL[minEccYid];
+      diameter = eccentricityL[maxEccYid];
+      break;
+    }
+    
+    if(selectInLower) {
+      next = minEccLXid;
+    } else {      
+      next = maxEccUXid;
+    }
+    
+    selectInLower = !selectInLower;
+    current = &graph[next];
+    round++;
   }
+
+  cout << "Diameter and radius computed in " << round << " BFSes" << endl;
+  delete[] eccentricityU;
+  delete[] eccentricityL;
+  delete[] distances;
 }
 
-int Graph::getDiameter() {
-  if (diameter == NOT_COMPUTED_YET) {
-    computeDiameter();
-  }
-  return diameter;
+distance_t Graph::getEccentricity(int index) {
+  return eccentricity[index];
 }
 
+distance_t Graph::getFarness(int index) {
+  return farness[index];
+}
+
+nodeList_t& Graph::getCenter() {
+  return center;
+}
+
+nodeList_t& Graph::getCentroid() {
+  return centroid;
+}
+
+#if 0
 void Graph::printDistances() {
   DistanceMatrix &D = *distances;
   //cout << "       ";
@@ -190,3 +346,4 @@ void Graph::printDistances() {
     cout << endl;
   }
 }
+#endif

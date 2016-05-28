@@ -1,16 +1,13 @@
 # GraphAnalyzer
 
-GraphAnalyzer is a tool to efficiently analyze undirected and unweighted graphs. For now, it only print the diameter of the graph in input.
+GraphAnalyzer is a tool to efficiently analyze undirected and unweighted graphs.
+It is efficient both in terms of time and memory usage. Moreover, it is optimized for sparse graphs.
+
+For now, it only print the diameter and the radius of the graph in input.
 
 ### Dependencies
 
-GraphAnalyzer requires OpenMP and Boost libraries.
-
-In order to install Boost library on Ubuntu:
-
-```
-$ sudo apt-get install libboost-all-dev
-```
+GraphAnalyzer requires OpenMP.
 
 ### Compilation
 
@@ -63,4 +60,5 @@ Computing all pairs shortest paths...
 Breadth-First Search (BFS) based algorithm...
 Parallel optimization using OpenMP...
 Diameter: 7
+Radius: 4
 ```

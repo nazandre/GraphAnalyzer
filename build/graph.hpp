@@ -1,41 +1,13 @@
 #ifndef GRAPH_H_
 #define GRAPH_H_
 
-#include <boost/graph/undirected_graph.hpp>
-#include <boost/graph/exterior_property.hpp>
-#include <boost/graph/floyd_warshall_shortest.hpp>
-#include <boost/graph/closeness_centrality.hpp>
-#include <boost/property_map/property_map.hpp>
-#include <boost/graph/property_maps/constant_property_map.hpp>
-#include <boost/graph/johnson_all_pairs_shortest.hpp>
-
 #include "node.hpp"
 
-using namespace boost;
+typedef Node* graph_t; 
+typedef int distance_t;
+typedef distance_t* distanceMap_t;
+typedef Node** parentMap_t;
 
-typedef adjacency_list<listS, vecS, undirectedS, no_property,  property< edge_weight_t, int> > Graph_t;
-
-typedef graph_traits<Graph_t>::vertex_descriptor Vertex;
-typedef graph_traits<Graph_t>::edge_descriptor Edge;
-
-typedef property_map<Graph_t, boost::vertex_index_t>::type NameMap;
-
-// Declare a matrix type and its corresponding property map that
-// will contain the distances between each pair of vertices.
-typedef exterior_vertex_property<Graph_t, int> DistanceProperty;
-typedef DistanceProperty::matrix_type DistanceMatrix;
-typedef DistanceProperty::matrix_map_type DistanceMatrixMap;
-
-// Declare the weight map so that each edge returns the same value.
-typedef constant_property_map<Edge, int> WeightMap;
-
-typedef exterior_vertex_property<Graph_t, float> ClosenessProperty;
-typedef ClosenessProperty::container_type ClosenessContainer;
-typedef ClosenessProperty::map_type ClosenessMap;
-
-//#define FLOYD_WARSHALL_APSP
-//#define JOHNSON_APSP
-//#define DIJKSTRA_BASED_APSP
 #define BFS_BASED_APSP
 #define PARALLEL_APSP
 
@@ -44,15 +16,21 @@ class Graph {
 public:
   std::string input;
 
-  Graph_t graph;
-  Node *nodes;
-  NameMap nameMap;
+  graph_t graph;
 
-  DistanceMatrix *distances;
-  DistanceMatrixMap *distanceMap;
+  int numNodes;
+  int numEdges;
 
-  int size;
-  int diameter;
+  bool computed; // true, if everything has been computed
+  
+  distance_t diameter;
+  distance_t radius;
+  
+  distanceMap_t eccentricity;
+  distanceMap_t farness;
+  
+  nodeList_t center;
+  nodeList_t centroid;
   
   Graph();
   Graph(std::string i);
@@ -60,12 +38,37 @@ public:
   ~Graph();
 
   void read();
+  void addEdge(int i, int j);
+  void breadthFirstSearch(Node *root,
+			  distanceMap_t distances,
+			  parentMap_t parents);
 
-  void computeAllPairShortestPaths();
-  void printDistances();
+  distance_t maxDistance(distanceMap_t d);
+  distance_t minDistance(distanceMap_t d);
 
-  void computeDiameter();
-  int getDiameter();
+
+  // Compute diameter, radius, center and centroid
+  // Complexity: O(n) BFSes (O(n(n+m) time, O(n*#threads) memory)
+  //    BFSes run in parallel
+  void compute();
+
+  // Compute the eccentricity and farness of a single node of index "index"
+  // Complexity: O(1) BFS (O(n+m) time, O(n) memory)
+  void compute(int index); // compute values for a single node!
+
+  // Compute only diameter and radius.
+  // Complexity: O(n) BFSes (O(n(n+m) time, O(n) memory)
+  //    In practice uses O(1) BFSes...
+  // Inspired by: Borassi, M., Crescenzi, P., Habib, M., Kosters, W., Marino, A.,
+  // & Takes, F. (2014, July). On the solvability of the six degrees of kevin bacon game.
+  // In Fun with Algorithms (pp. 52-63). Springer International Publishing.
+  void fastCompute();
+  
+  distance_t getEccentricity(int index);
+  distance_t getFarness(int index);
+
+  nodeList_t& getCenter();
+  nodeList_t& getCentroid();
   
 };
 
