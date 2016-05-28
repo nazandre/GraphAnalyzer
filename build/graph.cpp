@@ -214,7 +214,7 @@ void Graph::compute() {
   diameter = eccentricity[0];
   radius = eccentricity[0];
   minFarness = farness[0];
-  for (int i = 0; i < numNodes; i++) {
+  for (int i = 1; i < numNodes; i++) {
     diameter = max(diameter, eccentricity[i]);
     radius = min(radius, eccentricity[i]);
     minFarness = min(minFarness, farness[i]);
@@ -342,13 +342,13 @@ void Graph::fastCompute() { // compute only diameter+radius
 	}
       }
     }
-   
+
     if ( (minEccLXid == -1 && maxEccUXid == -1) || // everything has converged
 	 (
 	  eccentricityL[minEccYid] <= eccentricityL[minEccLXid] && // radius comp. has converged
 	eccentricityL[maxEccYid] >= eccentricityL[maxEccUXid] // diameter comp. has converged
 	  )
-	) {
+	 ) {
       radius = eccentricityL[minEccYid];
       diameter = eccentricityL[maxEccYid];
       break;
