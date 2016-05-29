@@ -370,9 +370,10 @@ void Graph::fastCompute() { // compute only diameter+radius
    
     if (!diameterConverged &&
 	eccentricityL[maxEccYid] >= eccentricityL[maxEccUXid]) {
-      cerr << "Diameter has converged ("
+      cerr << "Diameter has converged (="
 	   << eccentricityL[maxEccYid]
-	   << ")" << endl;
+	   << "), in " << round << " BFSes"
+	   << endl;
       diameterConverged = true;
     }
     
