@@ -14,6 +14,10 @@ int main(int argc, char *argv[]) {
   
   Graph g(arguments.input);
 
+  if (g.numNodes < 2) {
+    cerr << "ERROR: Input graph is empty or contains only two nodes..." << endl;
+  }
+  
   if (!g.isConnected()) {
     cerr << "WARNING: Input graph is not connected..." << endl;
   }

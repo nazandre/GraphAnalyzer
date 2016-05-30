@@ -5,6 +5,7 @@
 #include <cstring>
 #include <climits>
 #include <omp.h>
+#include <list>
 
 #include "graph.hpp"
 
@@ -12,10 +13,14 @@ using namespace std;
 
 //#define INPUT_GRAPH_READING_DEBUG
 //#define APSP_DEBUG
+
 //#define DEBUG_FAST_COMPUTE
 
 #define MAX_DISTANCE INT_MAX
 #define MIN_DISTANCE INT_MIN
+
+//typedef std::pair<distance_t,distance_t> eccentricityLU_t;
+//typedef eccentricityLU_t* eccentricityLUMap_t;
 
 Graph::Graph() {
   graph = NULL;
@@ -118,7 +123,9 @@ void Graph::breadthFirstSearch(Node *root,
     cerr << "ERROR: distances parameters of Graph::breadthFirstSearch should not be NULL" << endl;
   }
 
-  memset(distances, -1, numNodes*sizeof(distance_t));
+  for (int i = 0; i < numNodes; i++) {
+    distances[i] = MAX_DISTANCE;
+  }
   
   distance = 0;
   distances[root->graphId] = distance;
@@ -132,7 +139,7 @@ void Graph::breadthFirstSearch(Node *root,
 	it = parent->neighbors.begin();
 	while (it != parent->neighbors.end()) {
 	  neighbor = *it;
-	  if (distances[neighbor->graphId] != -1) {
+	  if (distances[neighbor->graphId] != MAX_DISTANCE) {
 	    it++;
 	    continue;
 	  }
@@ -152,7 +159,7 @@ bool Graph::isConnected() {
   distanceMap_t distances = new distance_t[numNodes];
   breadthFirstSearch(&graph[0],distances,NULL);
   for (int i = 0; i < numNodes; i++) {
-    if (distances[i] < 0) {
+    if (distances[i] == MAX_DISTANCE) {
       return false;
     }
   }
@@ -161,7 +168,7 @@ bool Graph::isConnected() {
 
 void Graph::printDistance(distanceMap_t d) {
   for (int i = 0; i < numNodes; i++) {
-    cout << d[i] << ", ";
+    cerr << d[i] << ", ";
   }
 }
 
@@ -241,166 +248,217 @@ nodeProperty_t Graph::compute(int index) {
   return make_pair(eccentricity,farness);
 }
 
+void Graph::minMaxDistance(nodeList_t list,
+			   distanceMap_t value1,
+			   distanceMap_t value2,
+			   distanceMap_t tieBreaker,
+			   Node* &minNode,
+			   Node* &maxNode) {
+  
+  nodeList_t::iterator it;
+  Node *node;
+  int minNodeId, maxNodeId, nodeId;
+  
+  if (list.size() == 0) {
+    minNode = NULL;
+    maxNode = NULL;
+    return;
+  }
+
+  if (value2 == NULL) {
+    value2 = value1;
+  }
+  if (tieBreaker == NULL) {
+    tieBreaker = value1;
+  }
+  
+  it = list.begin();
+  node = *it;
+  minNode = node;
+  maxNode = node;
+  it++;
+  
+  for (;it != list.end(); it++) {
+    node = *it;
+    
+    nodeId = node->graphId;
+    minNodeId = minNode->graphId;
+    maxNodeId = maxNode->graphId;
+    
+    if (value1[nodeId] < value1[minNodeId] ||
+	(value1[nodeId] == value1[minNodeId] &&
+	 tieBreaker[nodeId] < tieBreaker[minNodeId])
+	) {
+      minNode = node;
+    }
+    if (value2[nodeId] > value2[maxNodeId] ||
+	(value2[nodeId] == value2[maxNodeId] &&
+	 tieBreaker[nodeId] > tieBreaker[maxNodeId])
+	) {
+      maxNode = node;
+    }
+  }
+}
+			   
+
 void Graph::fastCompute() { // compute only diameter+radius
-  Node *current;
-  int next;
-  distance_t eccentricity = 0;
-  distanceMap_t eccentricityU = new distance_t[numNodes];
-  distanceMap_t eccentricityL = new distance_t[numNodes];
-  distanceMap_t distances = new distance_t[numNodes];
-  distanceMap_t sum =  new distance_t[numNodes]; // to break the ties in next node selection
-  bool *alreadyDone = new bool[numNodes];
+  Node *current, *next;
   bool selectInLower = true;
   int round = 1;
-  bool diameterConverged = false;
+  distance_t ecc = 0;
+  distanceMap_t eccentricityU = new distance_t[numNodes];
+  distanceMap_t eccentricityL = new distance_t[numNodes];
+  distanceMap_t eccentricity = eccentricityL; // to be used with nodes that have converged!
+  distanceMap_t distances = new distance_t[numNodes];
+  distanceMap_t sum =  new distance_t[numNodes]; // to break the ties in next node selection
+
+  list<Node*> converged;
+  list<Node*> notConverged;
+  Node *minEccNode, *maxEccNode;
+  Node *minEccLNode, *maxEccUNode;
+  
+  bool diameterHasConverged = false;
+  bool radiusHasConverged = false;
   
   cerr << "Fast diameter and radius computation..." << endl;
 
+  if (eccentricityU == NULL ||
+      eccentricityL == NULL ||
+      distances == NULL ||
+      sum == NULL) {
+    cerr << "ERROR: Memory allocation error." << endl;
+  }
+  
+  // initizialize data structures
+
+  for (int i = 0; i < numNodes; i++) {
+    eccentricityU[i] = MAX_DISTANCE;
+    eccentricityL[i] = MIN_DISTANCE;
+    sum[i] = 0;
+    notConverged.push_back(&graph[i]);
+  }
+  
   srand(time(NULL));
   int first = rand() % numNodes; // start random node
   current = &graph[first];
-  memset(eccentricityU, MAX_DISTANCE, numNodes*sizeof(distance_t));
-  memset(eccentricityL, 0, numNodes*sizeof(distance_t));
-  memset(sum, 0, numNodes*sizeof(distance_t));
-  memset(alreadyDone, false, numNodes*sizeof(bool));
   
   while(true) {
     
 #ifdef DEBUG_FAST_COMPUTE
     cerr << "Computing BFS from node " << current->graphId << endl; 
 #endif
-    //memset(distances, -1, numNodes*sizeof(distance_t));
+    // BFS from node "current"
     breadthFirstSearch(current,distances,NULL);
-
+        
+    ecc = maxDistance(distances);
 #ifdef DEBUG_FAST_COMPUTE
-    //    cerr << "distances: ";
-    //printDistance(distances);
-    //cerr << endl;
+    cerr << "Eccentricity: " << ecc << endl;
 #endif
-    
-    eccentricity = maxDistance(distances);
-#ifdef DEBUG_FAST_COMPUTE
-    cerr << "Eccentricity: " << eccentricity << endl;
-#endif
-    eccentricityU[current->graphId] = eccentricity;
-    eccentricityL[current->graphId] = eccentricity;
-    alreadyDone[current->graphId] = true;
     
     for (int i = 0; i < numNodes; i++) {
-      if (i != current->graphId) {
-	if (!alreadyDone[i]) {
-	  eccentricityU[i] = max(eccentricityU[i],distances[i] + eccentricity);
-	  eccentricityL[i] = max(eccentricityL[i],distances[i]);
-	}
-	sum[i] += distances[i];
-      }
+      eccentricityL[i] = max(eccentricityL[i],distances[i]);
+      eccentricityU[i] = min(eccentricityU[i],distances[i] + ecc);
+      sum[i] += distances[i];
     }
 
     if (round < 4) {
-      next = 0;
+      next = &graph[0];
       for (int i = 1; i < numNodes; i++) {
-	if (distances[i] > distances[next] &&
-	    sum[i] > sum[next]) {
-	  next = i;
+	if (distances[i] > distances[next->graphId] &&
+	    sum[i] > sum[next->graphId]) {
+	  next = &graph[i];
 	}
       }
-      current = &graph[next];
+      current = next;
       round++;
       continue;
     }
 	
-    // X : set of nodes v such that eL[v] < eU[v]
-    // Y : set of nodes v such that eL[v] == eU[v]
+    // NotConverged : set of nodes v such that eL[v] < eU[v]
+    // converged : set of nodes v such that eL[v] == eU[v]
+    for (list<Node*>::iterator it = notConverged.begin();
+	 it != notConverged.end(); it++) {
+      Node* n = *it;
+      if (eccentricityL[n->graphId] == eccentricityU[n->graphId]) {
+	converged.push_back(n);
+	notConverged.erase(it++);
+      }
+    }
+#ifdef DEBUG_FAST_COMPUTE
+    printDistance(eccentricityL);
+    cerr << endl;
+    printDistance(eccentricityU);
+    cerr << endl;
+#endif
     
-    int minEccYid = -1;
-    int minEccLXid = -1;
-    int maxEccUXid = -1;
-    int maxEccYid = -1;
+    minMaxDistance(converged, eccentricity, NULL, NULL, minEccNode, maxEccNode);
 
-    int y = 0;
-    for (int i = 0; i < numNodes; i++) {
+    if (notConverged.size() == 0) {
+      // Algorithm has converged
+      cerr << "Set of not converged nodes is empty..." << endl;
+      break;
+    }
+
+    minMaxDistance(notConverged, eccentricityL, eccentricityU, sum, minEccLNode, maxEccUNode);
+    
+#ifdef DEBUG_FAST_COMPUTE
+    int minEccLId = minEccLNode->graphId;
+    int maxEccUId = maxEccUNode->graphId;
+    int minConvergedId = minEccNode->graphId;
+    int maxConvergedId = maxEccNode->graphId; 
+    cerr << "Min EccL (in X (not converged)): "
+	 << "id= " << minEccLId
+	 << " => " << eccentricityL[minEccLId] << endl;
+    cerr << "Max EccU (in X (not converged)): "
+	 << "id= " << maxEccUId
+	 << " => " << eccentricityU[maxEccUId] << endl;
+    cerr << "Min Ecc (in Y (converged)): "
+	 << "id= " << minConvergedId
+	 << " => " << eccentricity[minConvergedId] << endl;
+    cerr << "Max Ecc (in Y (converged)): "
+	 << "id= " << maxConvergedId
+	 << " => " << eccentricity[maxConvergedId] << endl;
+    getchar();
+#endif
+
+    if (!diameterHasConverged) {
+      diameterHasConverged = (eccentricity[maxEccNode->graphId] >=
+			      eccentricityU[maxEccUNode->graphId]);
       
-      if (eccentricityL[i] < eccentricityU[i]) { // X
-	if (minEccLXid == -1 && maxEccUXid == -1) {
-	  minEccLXid = i;
-	  maxEccUXid = i;
-	  continue;
-	}
-	
-	if (eccentricityL[i] < eccentricityL[minEccLXid] ||
-	    (eccentricityL[i] == eccentricityL[minEccLXid] && sum[i] < sum[minEccLXid])
-	    ) {
-	  minEccLXid = i;
-	}
-	
-	if (eccentricityU[i] > eccentricityL[maxEccUXid] ||
-	    (eccentricityU[i] == eccentricityU[maxEccUXid] && sum[i] > sum[minEccLXid])
-	    ) {
-	  maxEccUXid = i;
-	}
-	
-      } else { // Y
-        y++;
-	if (minEccYid == -1 && maxEccYid == -1) {
-	  minEccYid = i;
-	  maxEccYid = i;
-	  continue;
-	}
-	if (eccentricityL[i] < eccentricityL[minEccYid]) {
-	  minEccYid = i;
-	}
-	if (eccentricityU[i] > eccentricityL[maxEccYid]) {
-	  maxEccYid = i;
-	}
+      if (diameterHasConverged) {
+	cerr << "Diameter = " << eccentricity[maxEccNode->graphId] << endl;
+	cerr << "Diameter has converged in " << round << " BFSes" << endl;
       }
     }
 
-#ifdef DEBUG_FAST_COMPUTE
-    cerr << "Eccentricity: " << eccentricity << endl;
-    cerr << "Y: " << y << endl;
-    if (minEccLXid == -1) {
-      cerr << "Everything has converged..." << endl;
-    }
-    if (eccentricityL[maxEccYid] >= eccentricityL[maxEccUXid]) {
-      cerr << "Diameter has converged ("
-	   << eccentricityL[maxEccYid]
-	   << ")" << endl;   
-    }
-#endif
-   
-    if (!diameterConverged &&
-	eccentricityL[maxEccYid] >= eccentricityL[maxEccUXid]) {
-      cerr << "Diameter has converged (="
-	   << eccentricityL[maxEccYid]
-	   << "), in " << round << " BFSes"
-	   << endl;
-      diameterConverged = true;
+    if (!radiusHasConverged) {
+      radiusHasConverged = (eccentricity[minEccNode->graphId] <=
+			  eccentricityL[minEccLNode->graphId]);
+      if (radiusHasConverged) {
+	cerr << "Radius = " << eccentricity[minEccNode->graphId] << endl;
+	cerr << "Radius has converged in " << round << " BFSes" << endl;
+      }
     }
     
-    
-    if ( (minEccLXid == -1 && maxEccUXid == -1) || // everything has converged
-	 (
-	  eccentricityL[minEccYid] <= eccentricityL[minEccLXid] && // radius comp. has converged
-	eccentricityL[maxEccYid] >= eccentricityL[maxEccUXid] // diameter comp. has converged
-	  )
-	 ) {
-      radius = eccentricityL[minEccYid];
-      diameter = eccentricityL[maxEccYid];
+    if (diameterHasConverged && radiusHasConverged) {
       break;
     }
     
     if(selectInLower) {
-      next = minEccLXid;
+      next = minEccLNode;
     } else {      
-      next = maxEccUXid;
+      next = maxEccUNode;
     }
-    
     selectInLower = !selectInLower;
-    current = &graph[next];
     round++;
+    current = next;
   }
-
+  
   cerr << "Convergence in " << round << " BFSes" << endl;
+  
+  radius = eccentricity[minEccNode->graphId];
+  diameter = eccentricity[maxEccNode->graphId];
+  
   delete[] eccentricityU;
   delete[] eccentricityL;
   delete[] distances;

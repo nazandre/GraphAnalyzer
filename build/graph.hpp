@@ -72,6 +72,12 @@ public:
   // & Takes, F. (2014, July). On the solvability of the six degrees of kevin bacon game.
   // In Fun with Algorithms (pp. 52-63). Springer International Publishing.
   void fastCompute();
+  void minMaxDistance(nodeList_t list,
+		      distanceMap_t value1,
+		      distanceMap_t value2,
+		      distanceMap_t tieBreaker,
+		      Node* &minNode,
+		      Node* &maxNode);
   
   distance_t getEccentricity(int index);
   distance_t getFarness(int index);
