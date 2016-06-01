@@ -1,10 +1,10 @@
 # GraphAnalyzer
 
-GraphAnalyzer is a tool to efficiently analyze undirected and unweighted graphs.It is optimized for sparse graphs (m << n^2). It is efficient both in terms of computation time and memory usage.
+GraphAnalyzer is a tool to efficiently analyze undirected and unweighted graphs. It is optimized for sparse graphs (m << n^2). It is efficient both in terms of computation time and memory usage.
 
 GraphAnalyzer can compute and display on demand the diameter, the radius, the center and the centroid of the input graph. Moreover, it can display the eccentricity and the farness of some nodes if specified in argument.
 
-GraphAnalyzer has been developed to analyze graphs of large modular robot systems. In particular, we have implemented GraphAnalyzer to evaluate the accuracy of distributed centrality-based election algorithms [1,2] on such kind of systems. The execution of these distributed algorithms are simulated on the [VisibleSim simulator](http://projects.femto-st.fr/projet-visiblesim/), a simulator for modular robot systems. We compare the quality of the solution computed by [1,2] algorithms using GraphAnalyzer. Note that we have also implemented [VisibleSimToGraphAnalyzer](https://github.com/nazandre/VisibleSimToGraphAnalyzer), a tool that converts a VisibleSim configuration (description of the modules arrangement) to a graph description supported by GraphAnalyzer.
+GraphAnalyzer has been developed to analyze graphs of large modular robot systems. In particular, we have implemented GraphAnalyzer to evaluate the accuracy of distributed centrality-based election algorithms [1, 2] on such kind of systems. The execution of these distributed algorithms are simulated on the [VisibleSim simulator](http://projects.femto-st.fr/projet-visiblesim/), a simulator for modular robot systems. We compare the quality of the solution computed by [1, 2] algorithms using GraphAnalyzer. Note that we have also implemented [VisibleSimToGraphAnalyzer](https://github.com/nazandre/VisibleSimToGraphAnalyzer), a tool that converts a VisibleSim configuration (description of the modules arrangement) to a graph description supported by GraphAnalyzer.
 
 ### Dependency
 
