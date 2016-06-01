@@ -1,11 +1,11 @@
 # GraphAnalyzer
 
 GraphAnalyzer is a tool to efficiently analyze undirected and unweighted graphs.
-It is efficient both in terms of computation time and memory usage. GraphAnalyzer is optimized for sparse graphs.
+It is efficient both in terms of computation time and memory usage. GraphAnalyzer is optimized for sparse graphs (m << n^2).
 
 GraphAnalyzer can compute and display on demand the diameter, the radius, the center and the centroid of the input graph. Moreover, it can display the eccentricity and the farness of some nodes if specified in argument.
 
-### Dependencies
+### Dependency
 
 GraphAnalyzer requires OpenMP.
 
@@ -24,7 +24,7 @@ GraphAnalyzer works as following:
 
 ```
 Usage: GraphAnalyzer -i <input GraphAnalyzer (.aj) file> [options]
-Complexity: O(n) BFSes, i.e., O(n(n+m) time and  O(n*#threads) memory space
+Complexity: O(n) BFSes, i.e., O(n(n+m)) time and  O(n*#threads) memory space
 Options:
 -t <# threads>:     max number of threads to use (default: 8)
 -d:                 fast diameter and radius computation 
