@@ -226,6 +226,7 @@ void Graph::compute() {
 
   center.clear();
   centroid.clear();
+  extremities.clear();
   
   for (int i = 0; i < numNodes; i++) {
     if (eccentricity[i] == radius) {
@@ -233,6 +234,9 @@ void Graph::compute() {
     }
     if(farness[i] == minFarness) {
       centroid.push_back(&graph[i]);
+    }
+    if(eccentricity[i] == diameter) {
+      extremities.push_back(&graph[i]);
     }
   }
 }

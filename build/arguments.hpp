@@ -17,6 +17,8 @@ public:
   ~Arguments();
 
   void help();
+
+  bool hasNodeQueries();
   
 };
 

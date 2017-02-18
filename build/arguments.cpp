@@ -95,3 +95,7 @@ void Arguments::help() {
   cerr << "-h:                 print this usage and exit" << endl;
   exit(EXIT_SUCCESS);
 }
+
+bool Arguments::hasNodeQueries() {
+  return !nodeQueries.empty();
+}

@@ -34,6 +34,7 @@ public:
   
   nodeList_t center;
   nodeList_t centroid;
+  nodeList_t extremities;
   
   Graph();
   Graph(std::string i);
