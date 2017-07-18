@@ -334,7 +334,6 @@ void Graph::fastCompute() { // compute only diameter+radius
   }
   
   // initizialize data structures
-
   for (int i = 0; i < numNodes; i++) {
     eccentricityU[i] = MAX_DISTANCE;
     eccentricityL[i] = MIN_DISTANCE;
@@ -352,9 +351,15 @@ void Graph::fastCompute() { // compute only diameter+radius
     cerr << "Computing BFS from node " << current->graphId << endl; 
 #endif
     // BFS from node "current"
+    
     breadthFirstSearch(current,distances,NULL);
         
     ecc = maxDistance(distances);
+
+    // set current node ecc
+    eccentricityL[current->graphId] = ecc;
+    eccentricityU[current->graphId] = ecc;
+    
 #ifdef DEBUG_FAST_COMPUTE
     cerr << "Eccentricity: " << ecc << endl;
 #endif
@@ -387,12 +392,13 @@ void Graph::fastCompute() { // compute only diameter+radius
 	converged.push_back(n);
 	notConverged.erase(it++);
       }
-    }
+    }    
+    
 #ifdef DEBUG_FAST_COMPUTE
-    printDistance(eccentricityL);
+    /*printDistance(eccentricityL);
     cerr << endl;
     printDistance(eccentricityU);
-    cerr << endl;
+    cerr << endl;*/
 #endif
     
     minMaxDistance(converged, eccentricity, NULL, NULL, minEccNode, maxEccNode);
@@ -422,7 +428,6 @@ void Graph::fastCompute() { // compute only diameter+radius
     cerr << "Max Ecc (in Y (converged)): "
 	 << "id= " << maxConvergedId
 	 << " => " << eccentricity[maxConvergedId] << endl;
-    getchar();
 #endif
 
     if (!diameterHasConverged) {
