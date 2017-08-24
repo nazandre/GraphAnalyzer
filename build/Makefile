@@ -2,9 +2,9 @@ CC = g++
 
 CFLAGS = -Wall -std=c++11 -fopenmp
 #DEBUG:
-#CFLAGS += -g
+CFLAGS += -g
 # RELEASE:
-CFLAGS += -O3
+#CFLAGS += -O3
 
 EXEC_NAME = graphAnalyzer
 INCLUDES =

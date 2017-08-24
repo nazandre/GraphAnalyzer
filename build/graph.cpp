@@ -538,7 +538,6 @@ void Graph::printDistances() {
 
 void Graph::computeBetweenness() {
   //https://www.cs.purdue.edu/homes/agebreme/Networks/papers/brandes01centrality.pdf
-  distance_t apsp[numNodes][numNodes];
   betweenness_t delta[numNodes];
   distance_t distance[numNodes];
   betweenness_t sigma[numNodes];
@@ -547,19 +546,7 @@ void Graph::computeBetweenness() {
   
   betweenness = new betweenness_t[numNodes];
   maxBetweenness = 0;
-
-  cerr << "Compute: " << endl;
-  cerr << "Breadth-First Search (BFS) based algorithm..." << endl;
-#ifdef PARALLEL_APSP
-  cerr << "Parallel optimization using OpenMP. "
-       << "Max number of threads: " << omp_get_max_threads() << endl;
-#pragma omp parallel for
-#endif
-  for(int i = 0; i < numNodes; i++) {
-    distanceMap_t distances = &(apsp[i][0]);
-    breadthFirstSearch(&graph[i],distances,NULL);
-  }
-
+  
   for (int i = 0; i < numNodes; i++) {
     betweenness[i] = 0;
   }
@@ -586,12 +573,10 @@ void Graph::computeBetweenness() {
       s.push(v);
       
       nodeV = &graph[v];
+      
       for (nodeList_t::iterator it = nodeV->neighbors.begin();
 	    it != nodeV->neighbors.end(); it++) {
 	int w = (*it)->graphId;
-	
-	assert(apsp[v][w] == 1);
-
 	if (distance[w] < 0) {
 	  q.push(w);
 	  distance[w] = distance[v] + 1;
