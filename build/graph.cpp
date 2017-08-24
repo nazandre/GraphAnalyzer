@@ -540,7 +540,11 @@ void Graph::computeBetweenness() {
   //https://www.cs.purdue.edu/homes/agebreme/Networks/papers/brandes01centrality.pdf
   distance_t apsp[numNodes][numNodes];
   betweenness_t delta[numNodes];
-
+  distance_t distance[numNodes];
+  betweenness_t sigma[numNodes];
+  list<int> p[numNodes];
+  Node *nodeV = NULL;
+  
   betweenness = new betweenness_t[numNodes];
   maxBetweenness = 0;
 
@@ -563,13 +567,12 @@ void Graph::computeBetweenness() {
   for (int i = 0; i < numNodes; i++) {
     stack<int> s;
     queue<int> q;
-    distance_t distance[numNodes];
-    betweenness_t sigma[numNodes];
-    list<int> p[numNodes];
     
     for (int j = 0; j < numNodes; j++) {
       distance[j] = -1;
       sigma[j] = 0.0;
+      p[j].clear();
+      delta[j] = 0.0;
     }
     
     distance[i] = 0;
@@ -580,25 +583,26 @@ void Graph::computeBetweenness() {
     while(!q.empty()) {
       int v = q.front();
       q.pop();            
-      s.push(v);      
-      for (int w = 0; w < numNodes; w++) {
-	if (apsp[v][w] == 1) { // v & j are neighbors
-	  if (distance[w] < 0) {
-	    q.push(w);
-	    distance[w] = distance[v] + 1;
-	  }
-                  
-	  if (distance[w] == (distance[v] + 1)){
-	    sigma[w] += sigma[v];
-	    p[w].push_back(v);
-	  }
+      s.push(v);
+      
+      nodeV = &graph[v];
+      for (nodeList_t::iterator it = nodeV->neighbors.begin();
+	    it != nodeV->neighbors.end(); it++) {
+	int w = (*it)->graphId;
+	
+	assert(apsp[v][w] == 1);
+
+	if (distance[w] < 0) {
+	  q.push(w);
+	  distance[w] = distance[v] + 1;
+	}
+	
+	if (distance[w] == (distance[v] + 1)){
+	  sigma[w] += sigma[v];
+	  p[w].push_back(v);
 	}
       }
     } // while
-         
-    for (int j = 0; j < numNodes; j++) {
-      delta[j] = 0.0;
-    }
     
     while (!s.empty()) {
       int w = s.top();
