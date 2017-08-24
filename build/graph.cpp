@@ -7,6 +7,11 @@
 #include <omp.h>
 #include <list>
 
+#include <stack>
+#include <queue>
+
+#include <cassert>
+
 #include "graph.hpp"
 
 using namespace std;
@@ -31,6 +36,7 @@ Graph::Graph() {
   radius = MAX_DISTANCE;
   eccentricity = NULL;
   farness = NULL;
+  betweenness = NULL;
 }
 
 Graph::Graph(std::string i) {
@@ -43,6 +49,7 @@ Graph::Graph(std::string i) {
   radius = MAX_DISTANCE;
   eccentricity = NULL;
   farness = NULL;
+  betweenness = NULL;
   read();
 }
 
@@ -56,6 +63,7 @@ Graph::~Graph() {
   delete[] graph;
   delete[] eccentricity;
   delete[] farness;
+  delete[] betweenness;
 }
 
 void Graph::read() {
@@ -252,6 +260,12 @@ nodeProperty_t Graph::compute(int index) {
   return make_pair(eccentricity,farness);
 }
 
+
+betweenness_t Graph::getBetweenness(int index) {
+  assert(betweenness);
+  return betweenness[index];
+}
+
 void Graph::minMaxDistance(nodeList_t list,
 			   distanceMap_t value1,
 			   distanceMap_t value2,
@@ -305,7 +319,7 @@ void Graph::minMaxDistance(nodeList_t list,
 }
 			   
 
-void Graph::fastCompute() { // compute only diameter+radius
+void Graph::fastCompute(int initialNodeGraphId) { // compute only diameter+radius
   Node *current, *next;
   bool selectInLower = true;
   int round = 1;
@@ -340,10 +354,15 @@ void Graph::fastCompute() { // compute only diameter+radius
     sum[i] = 0;
     notConverged.push_back(&graph[i]);
   }
+
+  if (initialNodeGraphId < 0) { 
+    srand(time(NULL));
+    initialNodeGraphId = rand() % numNodes; // start random node
+  }  
+
+  cerr << "Starting with node: " << initialNodeGraphId << endl;
   
-  srand(time(NULL));
-  int first = rand() % numNodes; // start random node
-  current = &graph[first];
+  current = &graph[initialNodeGraphId];
   
   while(true) {
     
@@ -490,6 +509,11 @@ nodeList_t& Graph::getCentroid() {
   return centroid;
 }
 
+nodeList_t& Graph::getBetweennessCenter() {
+  return betweennessCenter;
+}
+
+  
 #if 0
 void Graph::printDistances() {
   DistanceMatrix &D = *distances;
@@ -511,3 +535,92 @@ void Graph::printDistances() {
   }
 }
 #endif
+
+void Graph::computeBetweenness() {
+  //https://www.cs.purdue.edu/homes/agebreme/Networks/papers/brandes01centrality.pdf
+  distance_t apsp[numNodes][numNodes];
+  betweenness_t delta[numNodes];
+
+  betweenness = new betweenness_t[numNodes];
+  maxBetweenness = 0;
+
+  cerr << "Compute: " << endl;
+  cerr << "Breadth-First Search (BFS) based algorithm..." << endl;
+#ifdef PARALLEL_APSP
+  cerr << "Parallel optimization using OpenMP. "
+       << "Max number of threads: " << omp_get_max_threads() << endl;
+#pragma omp parallel for
+#endif
+  for(int i = 0; i < numNodes; i++) {
+    distanceMap_t distances = &(apsp[i][0]);
+    breadthFirstSearch(&graph[i],distances,NULL);
+  }
+
+  for (int i = 0; i < numNodes; i++) {
+    betweenness[i] = 0;
+  }
+
+  for (int i = 0; i < numNodes; i++) {
+    stack<int> s;
+    queue<int> q;
+    distance_t distance[numNodes];
+    betweenness_t sigma[numNodes];
+    list<int> p[numNodes];
+    
+    for (int j = 0; j < numNodes; j++) {
+      distance[j] = -1;
+      sigma[j] = 0.0;
+    }
+    
+    distance[i] = 0;
+    sigma[i] = 1.0;
+    
+    q.push(i);
+         
+    while(!q.empty()) {
+      int v = q.front();
+      q.pop();            
+      s.push(v);      
+      for (int w = 0; w < numNodes; w++) {
+	if (apsp[v][w] == 1) { // v & j are neighbors
+	  if (distance[w] < 0) {
+	    q.push(w);
+	    distance[w] = distance[v] + 1;
+	  }
+                  
+	  if (distance[w] == (distance[v] + 1)){
+	    sigma[w] += sigma[v];
+	    p[w].push_back(v);
+	  }
+	}
+      }
+    } // while
+         
+    for (int j = 0; j < numNodes; j++) {
+      delta[j] = 0.0;
+    }
+    
+    while (!s.empty()) {
+      int w = s.top();
+      s.pop();
+      for (list<int>::iterator it=p[w].begin(); it != p[w].end(); ++it) {
+	int v = *it;
+	delta[v] += sigma[v]/sigma[w] * (1.0 + delta[w]);
+      }
+      if (w != i) {
+	betweenness[w] += delta[w];
+      }
+    }
+  } // global for
+      
+      	  
+  for (int i = 0; i < numNodes; i++) {
+    maxBetweenness=max(betweenness[i],maxBetweenness);
+  }
+  
+  for (int i = 0; i < numNodes; i++) {
+    if (betweenness[i] == maxBetweenness) {
+      betweennessCenter.push_back(&graph[i]);
+    }
+  }
+}

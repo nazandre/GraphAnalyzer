@@ -5,9 +5,14 @@
 #include "node.hpp"
 
 typedef Node* graph_t; 
-typedef int distance_t;
-typedef distance_t* distanceMap_t;
 typedef Node** parentMap_t;
+
+typedef long int distance_t;
+typedef long double betweenness_t;
+
+typedef distance_t* distanceMap_t;
+typedef betweenness_t* betweennessMap_t;
+
 typedef std::pair<distance_t,distance_t> nodeProperty_t; // eccentricity, farness
 
 #define BFS_BASED_APSP
@@ -24,17 +29,20 @@ public:
   int numEdges;
 
   bool computed; // true, if everything has been computed
-  
+
   distance_t diameter;
   distance_t radius;
   distance_t minFarness;
+  betweenness_t maxBetweenness;
   
   distanceMap_t eccentricity;
   distanceMap_t farness;
+  betweennessMap_t betweenness;
   
   nodeList_t center;
   nodeList_t centroid;
   nodeList_t extremities;
+  nodeList_t betweennessCenter;
   
   Graph();
   Graph(std::string i);
@@ -72,7 +80,7 @@ public:
   // Inspired by: Borassi, M., Crescenzi, P., Habib, M., Kosters, W., Marino, A.,
   // & Takes, F. (2014, July). On the solvability of the six degrees of kevin bacon game.
   // In Fun with Algorithms (pp. 52-63). Springer International Publishing.
-  void fastCompute();
+  void fastCompute(int initialNodeGraphId);
   void minMaxDistance(nodeList_t list,
 		      distanceMap_t value1,
 		      distanceMap_t value2,
@@ -80,12 +88,15 @@ public:
 		      Node* &minNode,
 		      Node* &maxNode);
   
+  void computeBetweenness(); // warning: O(n^2) in memory
+  
   distance_t getEccentricity(int index);
   distance_t getFarness(int index);
-
-  nodeList_t& getCenter();
-  nodeList_t& getCentroid();
+  betweenness_t getBetweenness(int index);
   
+  nodeList_t& getCenter();
+  nodeList_t& getCentroid();  
+  nodeList_t& getBetweennessCenter();
 };
 
 

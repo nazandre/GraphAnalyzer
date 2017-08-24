@@ -4,12 +4,16 @@
 #include <list>
 #include <string>
 
+enum computationMode_t {COMP_ECC_FAR, COMP_RAD_DIAM, COMP_BETWEENNESS};
+
 class Arguments {
 public:
   std::string input;
   std::string numThreads;
-  bool fastCompute;
+  int initialNode;
+
   std::list<int> nodeQueries;
+  computationMode_t computationMode;
   
   Arguments();
   Arguments(int argc, char *argv[]);

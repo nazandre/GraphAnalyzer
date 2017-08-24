@@ -7,15 +7,17 @@
 using namespace std;
 
 Arguments::Arguments() {
-  fastCompute = false;
+  computationMode = COMP_ECC_FAR;
   input = "";
   numThreads = "";
+  initialNode = -1;
 }
 
 Arguments::Arguments(int argc, char *argv[]) {
-  fastCompute = false;
+  computationMode = COMP_ECC_FAR;
   input = "";
   numThreads = "";
+  initialNode = -1;
   
   argv++;
   argc--;
@@ -37,8 +39,15 @@ Arguments::Arguments(int argc, char *argv[]) {
       argc--;
       argv++;
       break;
-    case 'd' :
-      fastCompute = true;
+    case 'm' :
+      computationMode = computationMode_t(stoi(argv[1]));
+      argc--;
+      argv++;
+      break;
+    case 's' :
+      initialNode = stoi(argv[1]);
+      argc--;
+      argv++;
       break;
     case 'h':
       help();
@@ -80,18 +89,21 @@ void Arguments::help() {
   //cerr << "VisibleSim Configuration File To Graph Analyzer File:" << endl;
   cerr << endl;
   cerr << "Usage: GraphAnalyzer -i <input GraphAnalyzer (.aj) file> [options]" << endl;
-  cerr << "Complexity: O(n) BFSes, i.e., O(n(n+m) time and  O(n*#threads) memory space"
-       << endl;
   cerr <<"Options:" << endl;
   cerr << "-t <# threads>:     max number of threads to use (default: " << omp_get_max_threads()
        << ")" << endl;
-  cerr << "-d:                 fast diameter and radius computation " << endl;
-  cerr << "                      does not support  parallelism" << endl;
-  cerr << "                      (disable center/centroid computation)" << endl;
+  cerr << "-c <mode>:          computation mode " << endl;
+  cerr << "                       <mode>:" << endl;
+
+  cerr << "                          " << COMP_ECC_FAR << " (by default): computation of the ecccentricity and farness of all nodes (Complexity: O(n) BFSes, i.e., O(n(n+m) time and  O(n*#threads) memory space)" << endl;
+  cerr << "                          " << COMP_RAD_DIAM << ": fast computation of the radius and diameter of the graph. Does not support parallelism. (Complexity: O(n) BFSes, i.e., O(n(n+m) time and  O(n) memory space)" << endl;
+  cerr << "                          " << COMP_BETWEENNESS << ": computation of the betweenness of the graph. (Complexity: O(n) BFSes, i.e., O(n(n+m) time and  O(n^2) memory space)" << endl;
+   
   cerr << "-n <node id>:       print the eccentricity and farness of the node with the" << endl;
   cerr << "                      id \"node id\". Support multiple node queries (e.g.," << endl;
   cerr << "                      \"-n 4 -n 6 -n 8\" to display information about nodes" << endl;
   cerr << "                      4, 6 and 8" << endl;
+  cerr << "-s:                 initial node (e.g., with -d)" << endl;
   cerr << "-h:                 print this usage and exit" << endl;
   exit(EXIT_SUCCESS);
 }
